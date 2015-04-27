@@ -15,6 +15,10 @@
 #define LISTENQ 1024
 #define INFTIM -1
 
+char origin_path[PATH_LEN];
+char path[OPEN_MAX][PATH_LEN];
+int fdmap[OPEN_MAX];
+
 int exit_err(char* str)
 {
     perror(str);
@@ -23,7 +27,10 @@ int exit_err(char* str)
 
 void initial()
 {
+    int i;
     system("mkdir Upload");
+    for(i = 0; i < OPEN_MAX; ++i) fdmap[i] = -1;
+    getcwd(origin_path, sizeof(origin_path));
 }
 
 void print(int sockfd, char* str)
@@ -35,25 +42,67 @@ void print(int sockfd, char* str)
     printf("%s:%d %s\n", inet_ntoa(clientaddr->sin_addr), ntohs(clientaddr->sin_port), str);
 }
 
+int findfd(int sockfd)
+{
+    int i;
+    for (i = 0; i < OPEN_MAX; ++i)
+        if (fdmap[i] == sockfd) break;
+    return i == OPEN_MAX ? -1 : i;
+}
+
+void change_folder(int sockfd, char *line)
+{
+    int i, fd;
+    char* buffer = line+2;
+    
+    chdir(origin_path);
+
+    if ((fd = findfd(sockfd)) == -1) {
+        for (i = 0; i < OPEN_MAX; ++i)
+            if (fdmap[i] < 0) {
+                fdmap[i] = sockfd;
+                getcwd(path[i], sizeof(path[i]));
+                fd = i;
+                printf("[DEBUG] %d use fd=%d[path=%s]\n", sockfd, fd, path[fd]);
+                break;
+            }
+    } else {
+        printf("[DEBUG] restore dir to: %s\n", path[fd]);
+        chdir(path[fd]);
+    }
+    if (line[2] != '\0') {
+        chdir(buffer);
+        getcwd(path[fd], sizeof(path[fd]));
+    }
+
+    // hacky clear line
+    line[2] = '\0';
+}
+
 void serve_for(int sockfd, char *line)
 {
     pid_t pid;
-    int state;
+    int i = 0;
+    
+    change_folder(sockfd, line);
 
     if((pid = fork()) == 0) {
-        dup2(sockfd, 2);
-        dup2(sockfd, 1);
-        dup2(sockfd, 0);
+        //dup2(sockfd, 2);
+        //dup2(sockfd, 1);
+        dup2(sockfd, STDOUT_FILENO);
         close(sockfd);
 
         char instruction = line[0];
-        char* buffer = line+2;
         switch(instruction) {
-            case 'L': execlp("ls", "ls", "-al", NULL); break;
-            case 'C': chdir(buffer); puts("Some"); exit(0); break;
-                      //execl("/bin/sh", "-c", "cd", buffer, NULL); break;
-            default: execlp("echo", "echo", "No instruction", NULL); break;
+            case 'L': 
+                execlp("ls", "ls", "-al", NULL); break;
+            case 'C':
+                execlp("pwd", "pwd", NULL); break;
+            default:
+                execlp("echo", "echo", "No instruction", NULL); break;
         }
+        fflush(stdout);
+        return;
     } else {
         wait(NULL);
     }
@@ -126,10 +175,10 @@ int main(int argc, char **argv)
                     close(sockfd);
                     client[i].fd = -1;
                 } else {
-                    
+
                     line[n-1] = '\0';
                     printf("[DEBUG] recv %s\n", line);
-                    
+
                     serve_for(sockfd, line);
                 }
                 if (--nready <= 0) break;

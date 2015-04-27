@@ -48,6 +48,7 @@ void service(int sockfd)
         n = read(sockfd, recv, MAXLINE);
         recv[n] = '\0';
         printf("%s", recv);
+    	printf("[C]hange folder [L]ist [U]pload [D]ownload [E]xit\n");
     }
     puts("Exit");
 }
