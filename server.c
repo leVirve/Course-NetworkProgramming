@@ -17,7 +17,7 @@
 
 char origin_path[PATH_LEN];
 char path[OPEN_MAX][PATH_LEN];
-int fdmap[OPEN_MAX];
+int fdmap[OPEN_MAX], busyio[OPEN_MAX];
 
 int exit_err(char* str)
 {
@@ -28,8 +28,8 @@ int exit_err(char* str)
 void initial()
 {
     int i;
-    system("mkdir Upload");
-    for(i = 0; i < OPEN_MAX; ++i) fdmap[i] = -1;
+    system("mkdir -p Upload");
+    for(i = 0; i < OPEN_MAX; ++i) busyio[i] = fdmap[i] = -1;
     getcwd(origin_path, sizeof(origin_path));
 }
 
@@ -50,10 +50,9 @@ int findfd(int sockfd)
     return i == OPEN_MAX ? -1 : i;
 }
 
-void change_folder(int sockfd, char *line)
+void change_folder(int sockfd, char* targ_path)
 {
     int i, fd;
-    char* buffer = line+2;
     
     chdir(origin_path);
 
@@ -70,34 +69,89 @@ void change_folder(int sockfd, char *line)
         printf("[DEBUG] restore dir to: %s\n", path[fd]);
         chdir(path[fd]);
     }
-    if (line[2] != '\0') {
-        chdir(buffer);
+    if (targ_path[2] != '\0') {
+        chdir(targ_path);
         getcwd(path[fd], sizeof(path[fd]));
     }
 
-    // hacky clear line
-    line[2] = '\0';
+}
+
+int busyIO(int sockfd)
+{
+    int i;
+    for (i = 0; i < OPEN_MAX; ++i)
+        if (busyio[i] == sockfd)
+            return 1;
+    return 0;
+}
+
+void manipulate_file(int sockfd, char* filename, char* mode)
+{
+    char file[PATH_LEN];
+    char buffer[MAXLINE];
+    size_t n;
+    
+    sprintf(file, "./Upload/%s", filename);
+    printf("[DEBUG] file@ %s\n", file);
+    FILE* f = fopen(file, mode);
+
+    if (mode[0] == 'w') {
+        while((n = read(sockfd, buffer, MAXLINE)) > 0) {
+            printf("[DEBUG] recieve data: %s", buffer);
+            //fwrite(buffer, sizeof(char), n, f);
+            fprintf(f, "%s", buffer);
+            bzero(buffer, MAXLINE);
+        }
+
+        sprintf(buffer, "Ok, uploaded");
+        printf("[DEBUG] (send %s)\n", buffer);
+        write(sockfd, buffer, strlen(buffer));
+    } else {
+        while((n = read(sockfd, buffer,  MAXLINE)) > 0) {
+            buffer[n] = '\0';
+            printf("[DEBUG] recieve data: %s", buffer);
+            fwrite(buffer, 1, n, f);
+        }
+    }
 }
 
 void serve_for(int sockfd, char *line)
 {
     pid_t pid;
     int i = 0;
+    char instruction = line[0];
+    char* buffer = line+2;
     
-    change_folder(sockfd, line);
+    change_folder(sockfd, buffer);
+    if (instruction == 'U' || instruction == 'D') {
+        for (i = 0; i < OPEN_MAX; ++i)
+            if (busyio[i] < 0) {
+                busyio[i] = sockfd;
+                printf("[DEBUG] %d is in busy(i=%d)\n", sockfd, i);
+                break;
+            }
+    } else if (instruction == 'C')
+        // hacky clear line
+        line[2] = '\0';
 
-    if((pid = fork()) == 0) {
-        //dup2(sockfd, 2);
-        //dup2(sockfd, 1);
+    if (instruction == 'U') manipulate_file(sockfd, buffer, "wb");
+
+    if ((pid = fork()) == 0) {
         dup2(sockfd, STDOUT_FILENO);
         close(sockfd);
 
-        char instruction = line[0];
         switch(instruction) {
             case 'L': 
                 execlp("ls", "ls", "-al", NULL); break;
             case 'C':
                 execlp("pwd", "pwd", NULL); break;
+            case 'U':
+                // manipulate_file(sockfd, buffer, "w");
+                execlp("echo", "echo", "Upload Complete!", NULL); break;
+            case 'D':
+                sleep(10);
+                manipulate_file(sockfd, buffer, "r");
+                execlp("echo", "echo", "Download Complete!", NULL); break;
             default:
                 execlp("echo", "echo", "No instruction", NULL); break;
         }
@@ -127,7 +181,7 @@ int main(int argc, char **argv)
     bzero(&servaddr, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    servaddr.sin_port = htons(PORT);
+    servaddr.sin_port = htons(atoi(argv[1]));
 
     if(bind(listenfd, (struct sockaddr *) &servaddr, sizeof(servaddr)) == -1)
         exit_err("Binding error");
@@ -162,7 +216,8 @@ int main(int argc, char **argv)
         }
 
         for (i = 1; i <= maxfd; ++i) {
-            if ((sockfd = client[i].fd) < 0) continue;
+            if ((sockfd = client[i].fd) < 0 || busyIO(sockfd)) continue;
+
             if (client[i].revents & (POLLRDNORM | POLLERR)) {
                 if ((n = read(sockfd, line, MAXLINE)) < 0) {
                     if(errno == ECONNRESET) {
@@ -177,7 +232,7 @@ int main(int argc, char **argv)
                 } else {
 
                     line[n-1] = '\0';
-                    printf("[DEBUG] recv %s\n", line);
+                    printf("[DEBUG] recv %s(%d)\n", line, (int)n);
 
                     serve_for(sockfd, line);
                 }
