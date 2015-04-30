@@ -14,7 +14,8 @@
 
 #define OPEN_MAX 1024
 #define LISTENQ 1024
-#define INFTIM -1
+
+int saved_stdout;
 
 int exit_err(char* str)
 {
@@ -26,13 +27,14 @@ void sig_chld(int signo)
 {
     pid_t pid;
     int stat;
-    pid = wait(&stat);
-    printf("child %d terminated\n", pid);
+    while ((pid = waitpid(-1, &stat, WCONTINUED)) > 0);
     return;
 }
 
 void initial()
 {
+
+    saved_stdout = dup(1);
     system("mkdir -p Upload");
 }
 
@@ -47,7 +49,6 @@ void print(int sockfd, char* str)
 
 void serve_for(int sockfd, char *line)
 {
-    int saved_stdout = dup(1);
     dup2(sockfd, 1);
 
     char instruction = line[0];
@@ -58,13 +59,10 @@ void serve_for(int sockfd, char *line)
     struct stat fst;
 
     switch(instruction) {
-        case 'L': 
+        case 'L':
             system("ls -al");
             break;
-        case 'C': 
-            
-            // TO-DO: on `master`
-            
+        case 'C':
             chdir(buffer);
             system("pwd");
             break;
@@ -101,7 +99,6 @@ void serve_for(int sockfd, char *line)
                   sprintf(filename, "./Upload/%s", buffer); // No need
                   f = fopen(filename, "rb");
                   if (f == NULL) {
-                      // TO-DO: send msg to client
                       printf("[DEBUG] No such file: %s\n", filename);
                       return;
                   }
@@ -120,6 +117,7 @@ void serve_for(int sockfd, char *line)
                   fclose(f);
                   printf("[DEBUG] Send finished\n");
                   break;
+        case 'E': break;
         default: execlp("echo", "echo", "No instruction", NULL); break;
     }
     dup2(saved_stdout, 1);
@@ -152,7 +150,7 @@ int main(int argc, char **argv)
     if(listen(listenfd, LISTENQ) == -1)
         exit_err("Listen error");
 
-    //signal (SIGCHLD, sig_chld);
+    signal (SIGCHLD, sig_chld);
 
     for(;;) {
         clilen = sizeof(clientaddr);
@@ -168,20 +166,13 @@ int main(int argc, char **argv)
                     printf("[DEBUG] recv %s\n", line);
 
                     serve_for(connfd, line);
-                } else {
-                    break;
-                }
+                } else break;
             }
             print(connfd, "disconnected");
+            close(connfd);
             exit(0);
         } else {
             close(connfd);
-            //int wpid, status = 0;
-                  
-            //while ((wpid = wait(&status)) > 0) {
-            //    printf("Exit status of %d was %d (%s)\n", (int)wpid, status,
-            //            (status > 0) ? "accept" : "reject");
-            //}
         }
     }
 

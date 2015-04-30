@@ -46,19 +46,21 @@ void service(int sockfd)
     int n;
 
     printf("[C]hange folder [L]ist [U]pload [D]ownload [E]xit\n");
-    while(fgets(send, MAXLINE, stdin) != NULL && send[0] != 'E') {
+    while(fgets(send, MAXLINE, stdin) != NULL) {
         send[strlen(send) - 1] = '\0';
         write(sockfd, send, MAXLINE);
 
         if (send[0] == 'U') send_file(sockfd, send+2);
         if (send[0] == 'D') recv_file(sockfd, send+2);
         else {
+            if (send[0] == 'E') break;
             n = read(sockfd, recv, MAXLINE);
             recv[n] = '\0';
             printf("%s", recv);
         }
         printf("[C]hange folder [L]ist [U]pload [D]ownload [E]xit\n");
     }
+    //close(sockfd);
     puts("Exit");
 }
 
