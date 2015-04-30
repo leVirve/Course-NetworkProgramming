@@ -60,7 +60,6 @@ void service(int sockfd)
         }
         printf("[C]hange folder [L]ist [U]pload [D]ownload [E]xit\n");
     }
-    //close(sockfd);
     puts("Exit");
 }
 
@@ -69,19 +68,17 @@ void recv_file(int sockfd, char* file)
     file[strlen(file)] = '\0';
     size_t n, c, recv_bytes, filesize;
     char buffer[MAXLINE];
-    char filename[255];
-    sprintf(filename, "./Download/%s", file); // No need
+    char filename[PATH_LEN];
+    sprintf(filename, "./Download/%s", file);
     FILE* f = fopen(filename, "wb");
 
     bzero(buffer, MAXLINE);
     recv_bytes = 0;
     recv(sockfd, buffer, MAXLINE, 0);
     sscanf(buffer, "%zd", &filesize);
-    printf("[DEBUG] Downloading... filesize=%zd\n", filesize);
 
     while((n = recv(sockfd, buffer, MAXLINE, 0)) > 0) {
         if ((c = fwrite(buffer, sizeof(char), n, f)) < n) {
-            printf("[DEBUG] c=%zd < n=%zd\n", c, n);
             exit_err("fwrite error");
         }
         recv_bytes += n;
@@ -90,7 +87,6 @@ void recv_file(int sockfd, char* file)
         if (recv_bytes >= filesize) break;
     }
     fclose(f);
-    printf("[DEBUG] download finished (recv: %zd)\n", recv_bytes);
     puts("Download sucess!");
 }
 
@@ -109,7 +105,6 @@ void send_file(int sockfd, char* file)
     }
     fstat(fileno(f), &fst);
     filesize = fst.st_size;
-    printf("[DEBUG] sending...(size: %zd)\n", filesize);
 
     sprintf(buffer, "%zd", filesize);
     send(sockfd, buffer, MAXLINE, 0);
@@ -119,7 +114,6 @@ void send_file(int sockfd, char* file)
         bzero(buffer, MAXLINE);
     }
     fclose(f);
-    puts("[DEBUG] send finished");
 }
 
 int exit_err(char* str)

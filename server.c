@@ -68,15 +68,12 @@ void serve_for(int sockfd, char *line)
             break;
         case 'U':
                   dup2(saved_stdout, 1);
-                  sprintf(filename, "./Upload/%s", buffer); // No need
-                  f = fopen(filename, "wb");
-                  printf("[DEBUG] filename=%s\n", buffer);
+                  f = fopen(buffer, "wb");
 
                   bzero(buffer, MAXLINE);
                   recv_bytes = 0;
                   recv(sockfd, buffer, MAXLINE, 0);
                   sscanf(buffer, "%zd", &filesize);
-                  printf("[DEBUG] filesize=%zd\n", filesize);
 
                   while ((n = recv(sockfd, buffer, MAXLINE, 0)) > 0) {
                       if ((c = fwrite(buffer, sizeof(char), n, f)) < n) {
@@ -90,21 +87,18 @@ void serve_for(int sockfd, char *line)
                   }
                   fclose(f);
 
-                  printf("[DEBUG] Write finished\n");
                   sprintf(buffer, "Uploaded sucess!\n");
                   write(sockfd, buffer, MAXLINE);
                   break;
         case 'D':
                   dup2(saved_stdout, 1);
-                  sprintf(filename, "./Upload/%s", buffer); // No need
-                  f = fopen(filename, "rb");
+                  f = fopen(buffer, "rb");
                   if (f == NULL) {
                       printf("[DEBUG] No such file: %s\n", filename);
                       return;
                   }
                   fstat(fileno(f), &fst);
                   filesize = fst.st_size;
-                  printf("[DEBUG] filename=%s (size: %zd)\n", filename, filesize);
 
                   bzero(buffer, MAXLINE);
                   sprintf(buffer, "%zd", filesize);
@@ -115,7 +109,6 @@ void serve_for(int sockfd, char *line)
                       bzero(buffer, MAXLINE);
                   }
                   fclose(f);
-                  printf("[DEBUG] Send finished\n");
                   break;
         case 'E': break;
         default: execlp("echo", "echo", "No instruction", NULL); break;
@@ -161,10 +154,7 @@ int main(int argc, char **argv)
             close(listenfd);
             while(1) {
                 if ((n = read(connfd, line, MAXLINE)) > 0) {
-
                     line[n-1] = '\0';
-                    printf("[DEBUG] recv %s\n", line);
-
                     serve_for(connfd, line);
                 } else break;
             }
