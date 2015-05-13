@@ -1,5 +1,13 @@
+test
 users
 articles
+
 Upload/
 Download/
+
+*.jpg
+*.png
+
+server
+clinet
 
