@@ -10,9 +10,10 @@
 #include <sys/stat.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
-
+#include <sqlite3.h>
 #include <map>
 #include <set>
+#include <list>
 #include <vector>
 #include <string>
 #include <utility>
@@ -44,11 +45,14 @@ extern std::set<std::string> online_users;
 extern std::map<std::string, sockaddr_in> usersmap;
 extern std::vector<Article> articles;
 extern std::map<std::string, TFile> fileManager;
+extern std::list<std::string> requests;
 
 void dump();
-void startup();
+void startup(sqlite3*);
 void sig_dump(int);
 void setup_udpsock(int);
+void send_datagram(struct sockaddr_in, char*);
+bool recv_datagram(struct sockaddr_in&, char*);
 
 void new_account(char*);
 void del_account(char*);
@@ -67,6 +71,6 @@ void push_article(char*, struct sockaddr_in);
 void manage_blacklist(char*);
 
 void recv_file(char*, struct sockaddr_in);
-void send_file(char*, int, struct sockaddr_in, socklen_t);
+void send_file(char*, int, struct sockaddr_in);
 
 #endif

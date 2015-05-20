@@ -25,7 +25,11 @@ int articleNumber;
 bool isLogin = false, article_mode = false, read_mode = false;
 bool keepRunning = true;
 
+bool acked = false;
+
 void init(char*, char*, int);
+void send_datagram(char*);
+bool recv_datagram(char*);
 void sig_handle(int);
 void data_send(char*);
 void data_recv(char*);
@@ -35,7 +39,7 @@ void upload(char*);
 int main(int argc, char **argv)
 {
     if (argc != 3) exit(1);
-    char sendline[MAXLINE];
+    char sendline[MAX_DATA];
     init(sendline, argv[1], atoi(argv[2]));
 
     int maxfd = sockfd + 1;
@@ -61,7 +65,9 @@ int main(int argc, char **argv)
 void init(char* sendline, char* servip, int port)
 {
     system("mkdir -p Download");
-
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 500;
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     bzero(&servaddr, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
@@ -69,9 +75,10 @@ void init(char* sendline, char* servip, int port)
     inet_pton(AF_INET, servip, &servaddr.sin_addr);
 
     signal(SIGINT, sig_handle);
+    setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
     sprintf(sendline, "%s new\n", ANONYMOUS);
-    sendto(sockfd, sendline, strlen(sendline), 0, (struct sockaddr *) &servaddr, servlen);
+    send_datagram(sendline);
 }
 
 void sig_handle(int n)
@@ -79,6 +86,30 @@ void sig_handle(int n)
     if (article_mode) {
         article_mode = false;
     } else exit(n);
+}
+
+// Ensure data sent
+void send_datagram(char* raw)
+{
+    acked = false;
+    char buff[MAX_DATA];
+    int times = 0;
+    do {
+        times++;
+        bzero(buff, sizeof(buff));
+        sendto(sockfd, raw, MAX_DATA, 0, (struct sockaddr*) &servaddr, servlen);
+        recvfrom(sockfd, buff, MAX_DATA, 0, (sockaddr*) &servaddr, &servlen);
+    } while (string(raw) != string(buff));
+    DEBUG("Sent after %d try !\n", times);
+}
+
+// Ensure data sent
+bool recv_datagram(char* raw)
+{
+    recvfrom(sockfd, raw, MAX_DATA, 0, (sockaddr*) &servaddr, &servlen);
+    // ACK
+    sendto(sockfd, raw, MAX_DATA, 0, (struct sockaddr*) &servaddr, servlen);
+    return true;
 }
 
 void data_send(char* sendline)
@@ -104,7 +135,7 @@ void data_send(char* sendline)
             fgets(tmp, MAXLINE, stdin);
             article << tmp;
         }
-        article.read(buffer, MAX_DATA);
+        article.read(buffer, MAX_DATA); // ?
         printf("Send article!\n");
     } else if (READ_ARTICLE) {
         read_mode = true;
@@ -122,58 +153,51 @@ void data_send(char* sendline)
         sscanf(sendline, "%*s %[^\n]", filename);
         upload(filename);
         return;
+    } else if (sendline[0] == 'D') {
+        download(buffer);
+        return;
     }
-    sendto(sockfd, buffer, strlen(buffer), 0, (struct sockaddr*) &servaddr, servlen);
+
+    send_datagram(buffer);
     strcpy(sendline, buffer);
 }
 
 void data_recv(char* sendline)
 {
-    char buffer[MAXLINE];
-    bool append;
+    char buffer[MAX_DATA];
     stringstream response;
     bool clean = true;
 
-    while(1) {
-        int n = recvfrom(sockfd, buffer, MAXLINE, 0, NULL, NULL);
-        if((append = buffer[n - 1] == '@')) n--;
-        buffer[n] = '\0';
-        response << buffer;
-        string resp = buffer;
-        if (!isLogin && resp.find(login_ok) != string::npos) {
-            sscanf(sendline, "%*s %*c %s %*s\n", buffer);
-            username = buffer;
-            isLogin = true;
-        } else if (isLogin && resp.find(logout_ok) != string::npos) {
-            username = "";
-            isLogin = false;
-        } else if (resp.find("Broadcast") != string::npos) {
-            printf("\x1B[%d;%df", 5, 2);
-            fflush(stdout);
-            printf("%s\n", response.str().c_str());
-            printf("\x1B[%d;%df", 5, 2);
-            return;
-            clean = false;
-        } else if (resp.find("U") != string::npos) {
-            // return;
-        }
+    // int n = recvfrom(sockfd, buffer, MAXLINE, 0, NULL, NULL);
+    recv_datagram(buffer);
 
-        if (!append) break;
+    string resp = buffer;
+    if (!isLogin && resp.find(login_ok) != string::npos) {
+        sscanf(sendline, "%*s %*c %s %*s\n", buffer);
+        username = buffer;
+        isLogin = true;
+    } else if (isLogin && resp.find(logout_ok) != string::npos) {
+        username = "";
+        isLogin = false;
     }
+
 
     if (clean) system("clear");
     if (isLogin) printf(choice_info, username.c_str());
     else printf("%s\n", welcome_info);
-    printf("%s\n", response.str().c_str());
+    printf("%s\n", resp.c_str());
 
     if (read_mode) printf("%s", reading_info);
     if (!article_mode) printf("> ");
     fflush(stdout);
+
+    acked = true;
 }
 
 void upload(char* filename)
 {
     int i = 0;
+    int sendout = 0, n, s;
     char sendline[MAX_DATA], raw[RAW_DATA];
     FILE* f = fopen(filename, "rb");
     struct stat fst;
@@ -181,41 +205,49 @@ void upload(char* filename)
     fstat(fileno(f), &fst);
     filesize = fst.st_size;
 
-    int sendout = 0, n, s;
-
     while ((n = fread(raw, sizeof(char), RAW_DATA, f)) > 0) {
         snprintf(sendline, MAX_DATA,
-            "%s U %s %zd %d ",
-            username.c_str(), filename, filesize, i++);
+            "%s U %d %s %zd %d ",
+            username.c_str(), articleNumber, filename, filesize, i++);
         memcpy(sendline + strlen(sendline), raw, RAW_DATA);
-
         s = sendto(sockfd, sendline, MAX_DATA, 0, (struct sockaddr*) &servaddr, servlen);
         sleep(1);
         sendout += n;
-        DEBUG("#%d| read: %d, send: %d\n", i-1, n, s);
+        // DEBUG("#%d| read: %d, send: %d\n", i-1, n, s);
     }
     fclose(f);
     DEBUG("%d\n", sendout);
+    printf("> ");
 }
 
-void download(char* filename)
+void download(char* mesg)
 {
+    char filename[MAXLINE];
+    sscanf(mesg, "%*s %*s %[^\n]", filename);
+    sendto(sockfd, mesg, strlen(mesg), 0, (struct sockaddr*) &servaddr, servlen);
+
     int expect_number = 0, cur_number;
     size_t n, filesize, rcev_byte = 0;
-    char buffer[MAX_DATA], raw[RAW_DATA], path[MAXLINE];
+    char buffer[MAX_DATA], tmp[MAXLINE], username[MAXLINE];
+    char path[MAXLINE];
     snprintf(path, MAXLINE, "./Download/%s", filename);
-    FILE* f = fopen(path, "wb");
+    FILE* f = fopen(path, "ab");
 
     while ((n = recvfrom(sockfd, buffer, MAX_DATA, 0, NULL, NULL)) > 0) {
-        sscanf(buffer, "%*s %*s %zd %d %s", &filesize, &cur_number, raw);
+        int write_size = RAW_DATA;
+        char raw[RAW_DATA];
+        sscanf(buffer, "%s %*s %zd %d ", username, &filesize, &cur_number);
+        sprintf(tmp, "%s %s %zd %d ", username, filename, filesize, cur_number);
+        memcpy(raw, buffer + strlen(tmp), RAW_DATA);
         if (cur_number != expect_number++) {
             printf("Error: download\n");
             break;
         }
-        fwrite(buffer, sizeof(char), n, f);
-        rcev_byte += n;
+        if (rcev_byte + RAW_DATA >= filesize) write_size = filesize - rcev_byte;
+        rcev_byte += fwrite(raw, sizeof(char), write_size, f);
         if (rcev_byte >= filesize) break;
     }
     fclose(f);
-    DEBUG("Download finish!\n");
+    printf("> ");
+    // DEBUG("Download finish!\n");
 }

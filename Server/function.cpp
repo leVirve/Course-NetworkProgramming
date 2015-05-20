@@ -7,6 +7,69 @@ std::set<std::string> online_users;
 std::map<std::string, sockaddr_in> usersmap;
 std::vector<Article> articles;
 std::map<string, TFile> fileManager;
+std::list<std::string> requests;
+int max_retry = 100;
+
+void startup(sqlite3* db)
+{
+    system("mkdir -p Upload");
+    signal(SIGINT, sig_dump);
+
+    users.clear();
+    char acc[MAXLINE], pwd[MAXLINE];
+    FILE* fp = fopen("users", "r");
+    while (fscanf(fp, "%s %s\n", acc, pwd) != EOF) {
+        users.insert({acc, pwd});
+    }
+
+    // Anonymous, haha
+    users.insert({ANONYMOUS, ANONYMOUS});
+}
+
+void setup_udpsock(int port)
+{
+    struct sockaddr_in servaddr;
+    struct timeval tv;
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
+    len = sizeof(servaddr);
+    bzero(&servaddr, sizeof(servaddr));
+    servaddr.sin_family         = AF_INET;
+    servaddr.sin_addr.s_addr    = htonl(INADDR_ANY);
+    servaddr.sin_port           = htons(port);
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+        perror("Error");
+    }
+    bind(sockfd, (struct sockaddr *) &servaddr, sizeof(servaddr));
+}
+
+// Ensure data sent
+void send_datagram(struct sockaddr_in client, char* raw)
+{
+    char buff[MAX_DATA];
+    int times = 0;
+
+    DEBUG("Response to:%d\n", ntohs(client.sin_port));
+    do {
+        times++;
+        bzero(buff, sizeof(buff));
+        sendto(sockfd, raw, MAX_DATA, 0, (struct sockaddr*) &client, len);
+        recvfrom(sockfd, buff, MAX_DATA, 0, (sockaddr*) &client, &len);
+        if (times >= max_retry) break;
+    } while (string(raw) != string(buff));
+    DEBUG("Response in %d retry! (to:%d)\n", times, ntohs(client.sin_port));
+}
+
+// Ensure data sent
+bool recv_datagram(struct sockaddr_in& client, char* raw)
+{
+    recvfrom(sockfd, raw, MAX_DATA, 0, (sockaddr*) &client, &len);
+    // ACK
+    int n = sendto(sockfd, raw, MAX_DATA, 0, (struct sockaddr*) &client, len);
+    if (n < 0) perror(strerror(errno));
+    return true;
+}
 
 void new_article(char* mesg, struct sockaddr_in client)
 {
@@ -54,6 +117,7 @@ void browse_article(char* mesg)
         snprintf(mesg, MAXLINE, article_header,
             a.title.c_str(), a.author.c_str(), ctime(&ticks), a.content.c_str());
         string tmp = mesg;
+        for (auto r : a.files) tmp += r + '\n';
         for (auto r : a.responses) tmp += r;
         snprintf(mesg, MAXLINE, "%s", tmp.c_str());
     } catch (const out_of_range& e) {
@@ -65,7 +129,7 @@ void list_article(char* mesg)
 {
     int i = 1;
     char tmp[MAXLINE];
-    string result = "";
+    string result = "\t\tArticles:\n";
     for (auto a : articles) {
         snprintf(tmp, MAXLINE, "%d\t%s\t\t\t\t%s\t(Read: %d)\n",
             i++, a.title.c_str(), a.author.c_str(), a.readcount);
@@ -126,21 +190,6 @@ void sig_dump(int n)
     exit(0);
 }
 
-void startup()
-{
-    system("mkdir -p Upload");
-    signal(SIGINT, sig_dump);
-
-    users.clear();
-    char acc[MAXLINE], pwd[MAXLINE];
-    FILE* fp = fopen("users", "r");
-    while (fscanf(fp, "%s %s\n", acc, pwd) != EOF) {
-        users.insert({acc, pwd});
-    }
-
-    // Anonymous, haha
-    users.insert({ANONYMOUS, ANONYMOUS});
-}
 
 void dump()
 {
@@ -186,7 +235,7 @@ void logout(char* mesg)
     char buffer1[MAXLINE];
     sscanf(mesg, "%s %*s", buffer1);
     string account = buffer1;
-    if (online_users.find(account) == online_users.end()) sprintf(mesg, "You've logged out\n");
+    if (online_users.find(account) == online_users.end()) sprintf(mesg, logout_ok);
     else {
         online_users.erase(account);
         usersmap.erase(account);
@@ -206,18 +255,6 @@ void del_account(char* mesg)
         usersmap.erase(account);
         sprintf(mesg, "Account is deleted!\n");
     }
-}
-
-void setup_udpsock(int port)
-{
-    struct sockaddr_in servaddr;
-    len = sizeof(servaddr);
-    bzero(&servaddr, sizeof(servaddr));
-    servaddr.sin_family         = AF_INET;
-    servaddr.sin_addr.s_addr    = htonl(INADDR_ANY);
-    servaddr.sin_port           = htons(port);
-    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-    bind(sockfd, (struct sockaddr *) &servaddr, sizeof(servaddr));
 }
 
 void list_users(char* mesg)
@@ -243,7 +280,7 @@ void broadcast(char* mesg, int& sockfd)
     string name = buffer1, content = buffer2;
     sprintf(mesg, "[Broadcast] %s: %s\n", name.c_str(), content.c_str());
     for (auto c : usersmap) {
-        sendto(sockfd, mesg, sizeof(mesg), 0, (struct sockaddr*) &c.second, len);
+        sendto(sockfd, mesg, MAXLINE, 0, (struct sockaddr*) &c.second, len);
         DEBUG("%s:%d\n", inet_ntoa(c.second.sin_addr), ntohs(c.second.sin_port));
     }
 }
@@ -256,40 +293,52 @@ void direct_mesg(char* mesg, int& sockfd)
     if (online_users.count(targ)) {
         auto t = usersmap.find(targ);
         sprintf(mesg, "[Private] %s: %s\n", name.c_str(), content.c_str());
-        sendto(sockfd, mesg, sizeof(mesg), 0, (struct sockaddr*) &t->second, len);
+        DEBUG("Private msg to %d\n", ntohs(t->second.sin_port));
+        send_datagram(t->second, mesg);
+        sprintf(mesg, "Message has been sent to %s\n", targ.c_str());
     } else sprintf(mesg, "User is not online\n");
 }
 
-void send_file(char* mesg, int sockfd, struct sockaddr_in client, socklen_t len)
+void send_file(char* mesg, int sockfd, struct sockaddr_in client)
 {
     int i = 0;
+    int n, s;
     char raw[RAW_DATA], sendline[MAX_DATA];
     char username[MAXLINE], filename[MAXLINE], path[MAXLINE];
     sscanf(mesg, "%s %*s %s\n", username, filename);
-    snprintf(path, MAXLINE, "./Upload/%s-%s", username, filename);
-    FILE* f = fopen(filename, "rb");
+    snprintf(path, MAXLINE, "./Upload/%s", filename);
+
+    FILE* f = fopen(path, "rb");
     struct stat fst;
-    size_t n, filesize;
     fstat(fileno(f), &fst);
-    filesize = fst.st_size;
+    size_t filesize = fst.st_size;
+
+    DEBUG("%s\n", path);
+
     while ((n = fread(raw, sizeof(char), RAW_DATA, f)) > 0) {
         snprintf(sendline, MAX_DATA,
-            "%s %s %zd %d %s",
-            username, filename, filesize, i++, raw);
-        sendto(sockfd, sendline, strlen(sendline), 0, (struct sockaddr*) &client, len);
+            "%s %s %zd %d ",
+            username, filename, filesize, i++);
+        memcpy(sendline + strlen(sendline), raw, RAW_DATA);
+        s = sendto(sockfd, sendline, MAX_DATA, 0, (struct sockaddr*) &client, len);
+        DEBUG("sendout: %d\n", s);
+        sleep(  1);
     }
     fclose(f);
+
+    sprintf(mesg, "Download fin.\n");
+    send_datagram(client, mesg);
 }
 
 void recv_file(char* mesg, struct sockaddr_in client)
 {
     size_t n, filesize;
-    int expect_number, cur_number;
+    int expect_number, cur_number, index;
     char username[MAXLINE], filename[MAXLINE], path[MAXLINE];
     char tmp[MAXLINE], raw[RAW_DATA];
 
-    sscanf(mesg, "%s U %s %zd %d ", username, filename, &filesize, &cur_number);
-    sprintf(tmp, "%s U %s %zd %d ", username, filename, filesize, cur_number);
+    sscanf(mesg, "%s U %d %s %zd %d ", username, &index, filename, &filesize, &cur_number);
+    sprintf(tmp, "%s U %d %s %zd %d ", username, index, filename, filesize, cur_number);
     memcpy(raw, mesg + strlen(tmp), RAW_DATA);
 
     snprintf(path, MAXLINE, "./Upload/%s-%s", username, filename);
@@ -317,7 +366,12 @@ void recv_file(char* mesg, struct sockaddr_in client)
     fclose(f);
 
     if (fm->second.write_byte >= filesize) {
+        char tmp[MAXLINE];
+        snprintf(tmp, MAXLINE, "%s-%s", username, filename);
+        Article& a = articles.at(--index);
+        a.files.push_back(tmp);
         sprintf(mesg, "Upload fin.\n");
-        sendto(sockfd, mesg, strlen(mesg), 0, (sockaddr*) &client, len);
+        send_datagram(client, mesg);
+        // sendto(sockfd, mesg, strlen(mesg), 0, (sockaddr*) &client, len);
     }
 }

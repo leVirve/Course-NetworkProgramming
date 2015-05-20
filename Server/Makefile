@@ -1,4 +1,4 @@
 CC=g++
 
 all: function.cpp server.cpp ../const.h
-	${CC} *.cpp -o server -std=c++11
+	${CC} *.cpp -o server -std=c++11 -lsqlite3

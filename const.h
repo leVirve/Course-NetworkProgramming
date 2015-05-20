@@ -8,9 +8,9 @@
 #endif
 
 #define THRESHOLD 2048
-#define MAXLINE 4096
-#define RAW_DATA 4096
-#define MAX_DATA 8192
+#define MAXLINE 8192
+#define RAW_DATA 16384
+#define MAX_DATA 32768
 
 #define ANONYMOUS "anonymous"
 #define KNRM  "\x1B[0m"
