@@ -22,16 +22,6 @@
 
 #include "../const.h"
 
-struct Article {
-    std::string title;
-    std::string author;
-    std::string content;
-    std::vector<std::string> responses;
-    std::vector<std::string> files;
-    std::vector<std::string> blacklist;
-    int readcount;
-};
-
 struct TFile {
     int expected_num;
     int write_byte;
@@ -39,16 +29,13 @@ struct TFile {
 
 extern int sockfd;
 extern socklen_t len;
+extern sqlite3* db;
 extern bool volatile keepRunning;
-extern std::map<std::string, std::string> users;
 extern std::set<std::string> online_users;
 extern std::map<std::string, sockaddr_in> usersmap;
-extern std::vector<Article> articles;
 extern std::map<std::string, TFile> fileManager;
-extern std::list<std::string> requests;
 
-void dump();
-void startup(sqlite3*);
+void startup();
 void sig_dump(int);
 void setup_udpsock(int);
 void send_datagram(struct sockaddr_in, char*);
@@ -72,5 +59,7 @@ void manage_blacklist(char*);
 
 void recv_file(char*, struct sockaddr_in);
 void send_file(char*, int, struct sockaddr_in);
+
+
 
 #endif

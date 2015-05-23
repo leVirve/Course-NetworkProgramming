@@ -3,14 +3,14 @@ using namespace std;
 
 int sockfd;
 socklen_t len;
+sqlite3* db;
 
 void response();
 
 int main(int argc, char **argv)
 {
-    sqlite3* db;
     setup_udpsock(atoi(argv[1]));
-    startup(db);
+    startup();
     fd_set readset;
     FD_ZERO(&readset);
     int maxfd = sockfd + 1;
@@ -38,8 +38,6 @@ void response()
     sscanf(mesg, "%s %s", buffer1, instr);
     printf("User: %s - %s from %s:%d (%d)\n",
         buffer1, instr, inet_ntoa(client.sin_addr), ntohs(client.sin_port), conti);
-
-    // if (!conti) return;
 
     switch(instr[0]) {
     case 'n': sprintf(mesg, "new client"); break;
