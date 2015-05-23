@@ -9,8 +9,8 @@
 
 #define THRESHOLD 2048
 #define MAXLINE 8192
-#define RAW_DATA 16384
-#define MAX_DATA 32768
+#define RAW_DATA 50000
+#define MAX_DATA 65000
 
 #define ANONYMOUS "anonymous"
 #define KNRM  "\x1B[0m"
@@ -47,10 +47,10 @@
     "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n"
 
 #define login_ok \
-    "登入成功\n"
+    KGRN "登入成功\n" KNRM
 
 #define logout_ok \
-    "已登出\n"
+    KGRN "已登出\n" KNRM
 
 #define article_mode_resp \
     "ARTICLLE MODE\n"
