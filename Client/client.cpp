@@ -67,7 +67,7 @@ void init(char* sendline, char* servip, int port)
     system("mkdir -p Download");
     struct timeval tv;
     tv.tv_sec = 0;
-    tv.tv_usec = 500;
+    tv.tv_usec = 10000;
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     bzero(&servaddr, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
@@ -135,6 +135,7 @@ void data_send(char* sendline)
             fgets(tmp, MAXLINE, stdin);
             article << tmp;
         }
+        bzero(buffer, sizeof(buffer));
         article.read(buffer, MAX_DATA); // ?
         printf("Send article!\n");
     } else if (READ_ARTICLE) {
@@ -217,6 +218,7 @@ void upload(char* filename)
     }
     fclose(f);
     DEBUG("%d\n", sendout);
+    // recv_datagram(sendline);
     printf("> ");
 }
 
