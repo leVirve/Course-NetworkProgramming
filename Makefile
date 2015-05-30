@@ -4,5 +4,6 @@ all:
 
 clean:
 	rm -rf ./Upload
+	rm -rf ./Download
 	rm client
 	rm server
