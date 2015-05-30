@@ -195,10 +195,10 @@ void browse_article(char* mesg)
         string author = result[1 * cols + 2];
         string timestamp = result[1 * cols + 3];
         string content = result[1 * cols + 4];
-        content += result[1 * cols + 5];
+        string ip = result[1 * cols + 5];
         count = result[1 * cols + 6];
         snprintf(mesg, MAXLINE, article_header,
-            title.c_str(), author.c_str(), timestamp.c_str(), content.c_str());
+            title.c_str(), author.c_str(), timestamp.c_str(), content.c_str(), ip.c_str());
         resp = mesg;
         sqlite3_free_table(result);
     }
@@ -236,7 +236,7 @@ void list_article(char* mesg)
     sprintf(sql, "select * from Article");
     sqlite3_get_table(db , sql, &result , &rows, &cols, &err);
 
-    for (int i = 0; i < rows; i++) {
+    for (int i = 1; i <= rows; i++) {
         string id = result[i * cols];
         string title = result[i * cols + 1];
         string author = result[i * cols + 2];
@@ -321,7 +321,8 @@ void manage_blacklist(char* mesg)
 
 void list_users(char* mesg)
 {
-    int offset = 0;
+    int offset = strlen("線上使用者:\n");
+    sprintf(mesg, "%s", "線上使用者:\n");
     for (string user : online_users) {
         sprintf(mesg + offset, "%s\n", user.c_str());
         offset += (user.size() + 1);
@@ -331,7 +332,7 @@ void list_users(char* mesg)
 void broadcast(char* mesg, int& sockfd)
 {
     char buffer1[MAXLINE], buffer2[MAXLINE];
-    sscanf(mesg, "%s %*s %s\n", buffer1, buffer2);
+    sscanf(mesg, "%s %*s %[^$]\n", buffer1, buffer2);
     string name = buffer1, content = buffer2;
     sprintf(mesg, "[Broadcast] %s: %s\n", name.c_str(), content.c_str());
     for (auto c : usersmap) {
@@ -345,7 +346,7 @@ void broadcast(char* mesg, int& sockfd)
 void direct_mesg(char* mesg, int& sockfd)
 {
     char buffer1[MAXLINE], buffer2[MAXLINE], buffer3[MAXLINE];
-    sscanf(mesg, "%s %*s %s %s\n", buffer1, buffer2, buffer3);
+    sscanf(mesg, "%s %*s %s %[^&]\n", buffer1, buffer2, buffer3);
     string name = buffer1, targ = buffer2, content = buffer3;
     if (online_users.count(targ)) {
         auto t = usersmap.find(targ);

@@ -61,7 +61,7 @@
     "標題: %-80s\n" \
     "作者: %-80s\n" \
     "時間: %-80.24s\n" KNRM \
-    "%s-----------------------\n"
+    "%s\n" KGRN "%s\n" KNRM
 
 #define download_ok "download_start"
 #define upload_ok   "upload_start"
