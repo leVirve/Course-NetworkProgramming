@@ -4,93 +4,6 @@ using namespace std;
 map<std::string, std::string> accounts;
 map<std::string, Clinet> online_users;
 
-int exit_err(string str)
-{
-    perror(str.c_str());
-    exit(1);
-}
-
-string get_addr(struct sockaddr_in client)
-{
-    char str[MAXLINE];
-    sprintf(str, "%s:%d", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
-    return string(str);
-}
-
-struct sockaddr_in get_clint(int sockfd)
-{
-    struct sockaddr client;
-    socklen_t clilen = sizeof(client);
-    getpeername(sockfd, &client, &clilen);
-    struct sockaddr_in* clientaddr = (struct sockaddr_in*) &client;
-    return *clientaddr;
-}
-
-int tcp_listen(const char* host, const char* service, socklen_t* addrlen)
-{
-    int listenfd, n;
-    const int on = 1;
-    struct addrinfo hints, *res, *ret;
-
-    bzero(&hints, sizeof(struct addrinfo));
-    hints.ai_flags = AI_PASSIVE;
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-
-    if ((n = getaddrinfo(host, service, &hints, &res)) != 0)
-        exit_err("tcp_listen error");
-    ret = res;
-    do {
-        listenfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-        if (listenfd < 0) continue;
-        setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
-        if (bind(listenfd, res->ai_addr, res->ai_addrlen) == 0) break;
-        close(listenfd);
-    } while ((res = res->ai_next) != NULL);
-    if (res == NULL) exit_err("tcp_listen error");
-
-    listen(listenfd, LISTENQ);
-
-    if (addrlen) *addrlen = res->ai_addrlen;
-    freeaddrinfo(ret);
-
-    return listenfd;
-}
-
-void service(int sockfd)
-{
-    ssize_t n;
-    char mesg[MAXLINE];
-    char user[MAXLINE], instr[MAXLINE];
-
-again:
-    while((n = read(sockfd, mesg, MAXLINE)) > 0) {
-        mesg[n] = '\0';
-        sscanf(mesg, "%s %s", user, instr);
-        DEBUG("%s-%c\n", user, instr[0]);
-        switch(instr[0]) {
-            case 'L': case 'R': case 'E': case 'X':
-                account_processing(sockfd, mesg);
-                break;
-            case 'I': case 'F':
-                list_infomation(sockfd, mesg);
-                break;
-            case 'T': case 'Y':
-                //p2p_chat_system(mesg);
-                break;
-            case 'D': case 'U':
-                //file_proccesing(mesg);
-                break;
-            default:
-                break;
-        }
-        write(sockfd, mesg, MAXLINE);
-        bzero(mesg, MAXLINE);
-    }
-    if (n < 0 && errno == EINTR) goto again;
-    else if (n < 0) printf("str_echo: read error");
-}
-
 bool is_existed(const string account)
 {
     return accounts.count(account);
@@ -182,17 +95,4 @@ void list_infomation(int fd, char* mesg)
     ss.read(mesg, MAXLINE);
     ss.clear();
     ss.str("");
-}
-
-void str_echo(int sockfd)
-{
-    ssize_t n;
-    char buf[MAXLINE];
-again:
-    while((n = read(sockfd, buf, MAXLINE)) > 0)
-        write(sockfd, buf, n);
-    if (n < 0 && errno == EINTR) /* interrupted by a signal before any data was read*/
-        goto again; //ignore EINTR
-    else if (n < 0)
-        printf("str_echo: read error");
 }

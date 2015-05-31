@@ -1,33 +1,34 @@
 #include "tcp_client.h"
 using namespace std;
 
-int tcp_connect(const char* host, const char* service)
+void tcp_client(FILE* fp_arg, int sockfd_arg)
 {
-    int sockfd, n;
-    struct addrinfo hints, *res, *ret;
+    ssize_t n;
+    char recv[MAXLINE];
+    pthread_t tid;
 
-    bzero(&hints, sizeof(struct addrinfo));
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
+    sockfd = sockfd_arg;
+    fp = fp_arg;
 
-    if ((n = getaddrinfo(host, service, &hints, &res)) != 0)
-        exit_err("tcp_connect error");
-    ret = res;
-    do {
-        sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-        if (sockfd < 0) continue;
-        if (connect(sockfd, res->ai_addr, res->ai_addrlen) == 0) break;
-        close(sockfd);
-    } while ((res = res->ai_next) != NULL);
-    freeaddrinfo(ret);
+    pthread_create(&tid, NULL, request, NULL);
 
-    return sockfd;
+    while ((n = read(sockfd, recv, MAXLINE)) > 0) {
+        recv[n] = '\0';
+        printf("%s\n", recv);
+    }
 }
 
-void exit_err(string str)
+void* request(void* arg)
 {
-    perror(str.c_str());
-    exit(1);
+    char send[MAXLINE];
+
+    while (fgets(send, MAXLINE, fp) != NULL) {
+        request_processing(send);
+        write(sockfd, send, strlen(send));
+    }
+    shutdown(sockfd, SHUT_WR);
+
+    return NULL;
 }
 
 void request_processing(char* send)
