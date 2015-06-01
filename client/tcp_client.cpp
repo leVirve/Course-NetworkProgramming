@@ -1,28 +1,42 @@
 #include "tcp_client.h"
 using namespace std;
 
-void tcp_client(FILE* fp_arg, int sockfd_arg)
+extern bool stdin_p2p;
+
+void* tcp_p2p_client(void* arg)
 {
-    ssize_t n;
-    char recv[MAXLINE];
-    pthread_t tid;
+    char* recv = (char*) arg;
+    char host[SHORTINFO];
 
-    sockfd = sockfd_arg;
-    fp = fp_arg;
+    int p2p_servfd;
 
-    pthread_create(&tid, NULL, request, NULL);
+    sscanf(recv, "%*s %[^:]:%*s", host);
+    DEBUG("host %s\n", host);
+    p2p_servfd = tcp_connect(host, P2P_PORT);
+    DEBUG("p2p_servfd %d\n", p2p_servfd);
 
-    while ((n = read(sockfd, recv, MAXLINE)) > 0) {
-        recv[n] = '\0';
-        printf("%s\n", recv);
-    }
+    p2p_chat(p2p_servfd);
+    return NULL;
+}
+
+void* tcp_p2p_server(void* arg)
+{
+    int listenfd, connfd;
+    struct sockaddr p2p_client;
+    socklen_t len;
+    listenfd = tcp_listen(NULL, P2P_PORT, &len);
+    DEBUG("listenfd %d\n", listenfd);
+    connfd = accept(listenfd, &p2p_client, &len);
+    DEBUG("accept %d\n", connfd);
+
+    p2p_chat(connfd);
+    return NULL;
 }
 
 void* request(void* arg)
 {
     char send[MAXLINE];
-
-    while (fgets(send, MAXLINE, fp) != NULL) {
+    while (!stdin_p2p && fgets(send, MAXLINE, stdin) != NULL) {
         request_processing(send);
         write(sockfd, send, strlen(send));
     }

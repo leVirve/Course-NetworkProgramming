@@ -3,7 +3,8 @@
 extern int sockfd;
 extern FILE* fp;
 
-void* request(void* arg);
 void request_processing(char* send);
-void tcp_client(FILE* fp_arg, int sockfd_arg);
+void* request(void* arg);
+void* tcp_p2p_server(void* arg);
+void* tcp_p2p_client(void* arg);
 
