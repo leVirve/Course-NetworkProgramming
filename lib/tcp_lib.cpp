@@ -2,6 +2,7 @@
 
 int tcp_connect(const char* host, const char* service)
 {
+    sleep(1);
     int sockfd, n;
     struct addrinfo hints, *res, *ret;
 
@@ -61,7 +62,7 @@ std::string get_addr(struct sockaddr_in client)
     return std::string(str);
 }
 
-struct sockaddr_in get_clint(int sockfd)
+struct sockaddr_in get_client(int sockfd)
 {
     struct sockaddr client;
     socklen_t clilen = sizeof(client);

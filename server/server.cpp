@@ -11,20 +11,20 @@ again:
         sscanf(mesg, "%s %s", user, instr);
         DEBUG("%s-%c\n", user, instr[0]);
         switch(instr[0]) {
-            case 'L': case 'R': case 'E': case 'X':
-                account_processing(sockfd, mesg);
-                break;
-            case 'I': case 'F':
-                list_infomation(sockfd, mesg);
-                break;
-            case 'T': case 'Y':
-                //p2p_chat_system(mesg);
-                break;
-            case 'D': case 'U':
-                //p2p_file_system(mesg);
-                break;
-            default:
-                break;
+        case 'L': case 'R': case 'E': case 'X':
+            account_processing(sockfd, mesg);
+            break;
+        case 'I': case 'F':
+            list_infomation(mesg);
+            break;
+        case 'T': case 'Y':
+            p2p_chat_system(sockfd, mesg);
+            break;
+        case 'D': case 'U':
+            //p2p_file_system(mesg);
+            break;
+        default:
+            break;
         }
         write(sockfd, mesg, MAXLINE);
         bzero(mesg, MAXLINE);
@@ -62,7 +62,7 @@ int main(int argc, char **argv)
         connfdp = (int*) malloc(sizeof(int));
         *connfdp = accept(listenfd, clientaddr, &len);
 
-        printf("%d\n", *connfdp);
+        DEBUG("%d %s\n", *connfdp, get_addr(*(struct sockaddr_in*)clientaddr).c_str());
 
         pthread_create(&tid, NULL, &serve, (void*) connfdp);
     }

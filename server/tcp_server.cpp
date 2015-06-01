@@ -21,7 +21,7 @@ bool is_login(const string account)
 
 void account_processing(int fd, char* mesg)
 {
-    char buff1[MAXLINE], buff2[MAXLINE], instr;
+    char buff1[SHORTINFO], buff2[SHORTINFO], instr;
     sscanf(mesg, "%*s %c %s %s", &instr, buff1, buff2);
     string account = buff1, password = buff2;
 
@@ -42,7 +42,8 @@ void account_processing(int fd, char* mesg)
                     sprintf(mesg, "Wrong password\n");
                 } else {
                     Clinet client;
-                    client.addr = get_clint(fd);
+                    client.sockfd = fd;
+                    client.addr = get_client(fd);
                     client.files = {};
                     online_users.insert({account, client});
                     sprintf(mesg, "Login successfully !\n");
@@ -72,7 +73,7 @@ void account_processing(int fd, char* mesg)
     }
 }
 
-void list_infomation(int fd, char* mesg)
+void list_infomation(char* mesg)
 {
     char instr;
     stringstream ss;
@@ -95,4 +96,21 @@ void list_infomation(int fd, char* mesg)
     ss.read(mesg, MAXLINE);
     ss.clear();
     ss.str("");
+}
+
+void p2p_chat_system(int fd, char* mesg)
+{
+    char instr;
+    char send[MAXLINE], user[SHORTINFO];
+    sscanf(mesg, "%*s %c %s", &instr, user);
+
+    if (!is_login(user)) {
+        sprintf(mesg, "%s is not online!\n", user);
+    } else {
+        string p2p_server = get_addr(get_client(fd));
+        Clinet p2p_client = online_users.find(user)->second;
+        sprintf(send, "connect %s", p2p_server.c_str());
+        sprintf(mesg, "new connection\n");
+        write(p2p_client.sockfd, send, MAXLINE);
+    }
 }

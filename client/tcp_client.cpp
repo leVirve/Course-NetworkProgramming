@@ -3,7 +3,9 @@ using namespace std;
 
 extern bool stdin_p2p;
 
-void* tcp_p2p_client(void* arg)
+char input[MAXLINE];
+
+void tcp_p2p_client(void* arg)
 {
     char* recv = (char*) arg;
     char host[SHORTINFO];
@@ -15,11 +17,13 @@ void* tcp_p2p_client(void* arg)
     p2p_servfd = tcp_connect(host, P2P_PORT);
     DEBUG("p2p_servfd %d\n", p2p_servfd);
 
-    p2p_chat(p2p_servfd);
-    return NULL;
+    char buff[MAXLINE];
+    int n = write(p2p_servfd, input, strlen(input));
+    n = read(p2p_servfd, buff, MAXLINE);
+    DEBUG("->%s\n", buff);
 }
 
-void* tcp_p2p_server(void* arg)
+void tcp_p2p_server(void* arg)
 {
     int listenfd, connfd;
     struct sockaddr p2p_client;
@@ -29,14 +33,17 @@ void* tcp_p2p_server(void* arg)
     connfd = accept(listenfd, &p2p_client, &len);
     DEBUG("accept %d\n", connfd);
 
-    p2p_chat(connfd);
-    return NULL;
+    char recv[MAXLINE];
+    int n = write(connfd, input, strlen(input));
+    n = read(connfd, recv, MAXLINE);
+    DEBUG("->%s\n", recv);
 }
 
 void* request(void* arg)
 {
     char send[MAXLINE];
-    while (!stdin_p2p && fgets(send, MAXLINE, stdin) != NULL) {
+    while (fgets(input, MAXLINE, stdin) != NULL) {
+        strcpy(send, input);
         request_processing(send);
         write(sockfd, send, strlen(send));
     }
