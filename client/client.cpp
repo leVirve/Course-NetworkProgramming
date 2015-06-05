@@ -5,6 +5,7 @@ bool stdin_p2p = false;
 FILE* fp;
 
 pthread_mutex_t std_input;
+pthread_mutex_t std_input_s;
 
 void client(char* host, char* port)
 {
@@ -23,8 +24,8 @@ void client(char* host, char* port)
     while((n = read(sockfd, recv, MAXLINE)) > 0) {
         if (is_contained(recv, "Login")) tcp_p2p_init(recv);
         if (is_contained(recv, "@")) update_peers(recv, '\n');
-        if (is_contained(recv, "connect")) {
-            tcp_p2p_client(send, recv);
+        if (is_contained(recv, "new")) {
+            // tcp_p2p_client(recv);
         } else if (is_contained(recv, "download")) {
             p2p_download(recv);
         } else {
@@ -37,6 +38,7 @@ void client(char* host, char* port)
 int main(int argc, char** argv)
 {
     pthread_mutex_init(&std_input, NULL);
+    pthread_mutex_init(&std_input_s, NULL);
     client(argv[1], argv[2]);
     return 0;
 }

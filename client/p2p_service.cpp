@@ -6,7 +6,6 @@ void* p2p_send(void* arg)
     char send[MAXLINE];
 
     while (fgets(send, MAXLINE, stdin) != NULL) {
-        // printf("send %s", send);
         write(fd, send, strlen(send));
     }
 

@@ -106,7 +106,9 @@ void list_infomation(char* mesg)
     switch(instr) {
         case 'I':
             for (auto user : online_users)
-                ss << user.first << "@" << get_addr(user.second.addr) << endl;
+                ss << user.first << "@"
+                    << get_addr(user.second.addr) << ":"
+                    << user.second.serv_port << "\n";
             break;
         case 'F':
             files = getdir("./Assets");
@@ -136,16 +138,16 @@ void list_infomation(char* mesg)
 void p2p_chat_system(int fd, char* mesg)
 {
     char instr;
-    char send[MAXLINE], user[SHORTINFO];
-    sscanf(mesg, "%*s %c %s", &instr, user);
+    char send[MAXLINE], user[SHORTINFO], targ[SHORTINFO];
+    sscanf(mesg, "%s %c %s", user, &instr, targ);
 
-    if (!is_login(user)) {
-        sprintf(mesg, "%s is not online!\n", user);
+    if (!is_login(targ)) {
+        sprintf(mesg, "%s is not online!\n", targ);
     } else {
         string p2p_server = get_addr(get_client(fd));
-        Clinet p2p_client = online_users.find(user)->second;
-        sprintf(send, "connect %s", p2p_server.c_str());
-        sprintf(mesg, "new connection\n");
+        Clinet p2p_client = online_users.find(targ)->second;
+        sprintf(mesg, "connecting...\n");
+        sprintf(send, "new %s\n", user);
         write(p2p_client.sockfd, send, MAXLINE);
     }
 }

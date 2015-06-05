@@ -5,22 +5,23 @@ string username = "USER";
 string p2p_serv_port;
 map<string, pair<string, string>> peers;
 
-void tcp_p2p_client(char* send, char* recv)
+void tcp_p2p_client(char* recv)
 {
-    printf("New message! [Y/n]\n");
-    // auto peer = peers[user];
-    // DEBUG("send to %s %s\n", peer.first.c_str(), peer.second.c_str());
-    // int p2p_servfd = tcp_connect(peer.first.c_str(), peer.second.c_str());
-
-    char host[SHORTINFO], port[SHORTINFO];
     int p2p_servfd;
-    sscanf(recv, "%*s %[^:]:%s", host, port);
-    p2p_servfd = tcp_connect(host, port);
+    char user[SHORTINFO];
+    sscanf(recv, "%*c %s", user);
+    printf("New message from %s!\n", user);
+    auto peer = peers[user];
+    DEBUG("send to %s %s\n", peer.first.c_str(), peer.second.c_str());
+    p2p_servfd = tcp_connect(peer.first.c_str(), peer.second.c_str());
+
+    DEBUG("p2p_servfd %d\n", p2p_servfd);
+    string s = "initial connect message";
+    write(p2p_servfd, s.c_str(), s.length());
 
     pthread_t tid;
     pthread_create(&tid, NULL, p2p_chat, (void*) &p2p_servfd);
     pthread_join(tid, NULL);
-    pthread_mutex_unlock(&std_input);
 }
 
 void p2p_download(char* raw)
@@ -114,6 +115,7 @@ void* tcp_p2p_server(void* arg)
         len = addrlen;
         connfd = (int*) malloc(sizeof(int));
         *connfd = accept(listenfd, &p2p_client, &addrlen);
+        printf("新訊息，按任意建議繼續。\n");
 
         read(*connfd, buff, MAXDATA);
         DEBUG("%s\n", buff);
@@ -133,9 +135,10 @@ void* tcp_p2p_server(void* arg)
             pthread_join(tid, NULL);
             free(connfd);
         } else {
-            pthread_create(&tid, NULL, p2p_chat, (void*) &connfd);
-            pthread_mutex_unlock(&std_input);
+            pthread_mutex_lock(&std_input);
+            pthread_create(&tid, NULL, p2p_chat, (void*) connfd);
             pthread_join(tid, NULL);
+            pthread_mutex_unlock(&std_input);
             free(connfd);
         }
     }
@@ -152,10 +155,14 @@ void* user_input(void* arg)
         pthread_mutex_lock(&std_input);
         char *p = fgets(input, MAXLINE, stdin);
         pthread_mutex_unlock(&std_input);
+        sleep(1);
 
         if (p == NULL) break;
-        if (input[0] == 'T' || input[0] == 'Y')
+        if (input[0] == 'T') {
             pthread_mutex_lock(&std_input);
+            tcp_p2p_client(input);
+            pthread_mutex_unlock(&std_input);
+        }
         if (input[0] == 'D') {
             if (sscanf(input, "D %s %s", buff1, buff2) == 2) {
                 download_from(input);
@@ -218,4 +225,5 @@ void update_peers(string data, char delim)
         peers[name] = make_pair(ip, serv_port);
         printf("%s-%s::%s\n", name, peers[name].first.c_str(), peers[name].second.c_str());
     }
+    DEBUG("update_peers\n");
 }
