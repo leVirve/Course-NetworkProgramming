@@ -11,7 +11,7 @@ void client(char* host, char* port)
 {
     ssize_t n;
     char send[MAXLINE], recv[MAXLINE];
-    pthread_t tid;
+    pthread_t tid, sid;
 
     sockfd = tcp_connect(host, port);
 
@@ -19,7 +19,7 @@ void client(char* host, char* port)
     pthread_create(&tid, NULL, user_input, (void*) send);
 
     // New thread for p2p_server
-    pthread_create(&tid, NULL, tcp_p2p_server, NULL);
+    pthread_create(&sid, NULL, tcp_p2p_server, NULL);
 
     while((n = read(sockfd, recv, MAXLINE)) > 0) {
         if (is_contained(recv, "Login")) tcp_p2p_init(recv);
@@ -33,6 +33,8 @@ void client(char* host, char* port)
             printf("%s\n", recv);
         }
     }
+    pthread_join(sid, NULL);
+    pthread_join(tid, NULL);
 }
 
 int main(int argc, char** argv)

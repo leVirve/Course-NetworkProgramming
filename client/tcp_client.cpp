@@ -69,7 +69,6 @@ void* download_from_thread(void* arg)
 
 void download_from(char* raw)
 {
-    DEBUG("download_from RAW: %s\n", raw);
     char filename[SHORTINFO], user[SHORTINFO];
     int sn = -1, total = -1;
     int n = sscanf(raw, "%*s %s %s %d %d", user, filename, &sn, &total);
