@@ -77,6 +77,11 @@ void exit_err(std::string str)
     exit(1);
 }
 
+bool is_contained(std::string str, std::string targ)
+{
+    return str.find(targ) != std::string::npos;
+}
+
 std::vector<std::string> getdir(std::string dir)
 {
     std::vector<std::string> files;
@@ -102,22 +107,44 @@ unsigned int get_filesize(FILE* fp)
     return sz;
 }
 
+int cal_partial_size(int filesize, int total)
+{
+    return ceil((double)filesize / total);
+}
+
 void* send_file(void* arg)
 {
     PeerInfo p = *((PeerInfo*) arg);
-    std::string path = "./assets/" + p.filename;
-    FILE* f = fopen(path.c_str(), "rb");
+    DEBUG("part %d\n", p.part);
+    char path[MAXLINE];
+    snprintf(path, MAXLINE, "./assets/%s", p.filename.c_str());
+    FILE* f = fopen(path, "rb");
     unsigned int filesize = get_filesize(f);
 
-    int n;
+    int partial_size = 0, partial_start = 0;
+    if (p.total > 0) {
+        partial_size = cal_partial_size(filesize, p.total);
+        partial_start = partial_size * (p.part - 1);
+        if (partial_start + partial_start > filesize)
+            partial_size = filesize - partial_start;
+        // redifine
+        filesize = partial_size;
+        int s = fseek(f, partial_start, SEEK_SET);
+    }
+    DEBUG("part start: %d, size(%d)\n", partial_start, partial_size);
+
+    int n, send_byte = 0;
     char buff[MAXDATA];
     sprintf(buff, "%u\n", filesize);
     send(p.fd, buff, sizeof(buff), 0);
 
     while ((n = fread(buff, sizeof(char), MAXDATA, f)) > 0) {
+        if (send_byte + n > filesize) n = filesize;
+        send_byte += n;
+        if (n!=MAXDATA) DEBUG("%d\n", n);
         send(p.fd, buff, n, 0);
-        DEBUG("%d\n", n);
         bzero(buff, MAXDATA);
+        if (send_byte >= filesize) break;
     }
     fclose(f);
     printf("Send fin!\n");
@@ -127,8 +154,13 @@ void* send_file(void* arg)
 void* recv_file(void* arg)
 {
     PeerInfo p = *((PeerInfo*) arg);
-    std::string path = "./assets/new-" + p.filename;
-    FILE* f = fopen(path.c_str(), "wb");
+    DEBUG("part %d\n", p.part);
+    char path[MAXLINE];
+    if (p.total > 0)
+        snprintf(path, MAXLINE, "./assets/%s.part%d", p.filename.c_str(), p.part);
+    else snprintf(path, MAXLINE, "./assets/nw-%s", p.filename.c_str());
+    DEBUG("%s\n", path);
+    FILE* f = fopen(path, "wb");
     unsigned int filesize, recv_size = 0;
 
     int n, c;
@@ -138,12 +170,13 @@ void* recv_file(void* arg)
     DEBUG("filesize: %u\n", filesize);
 
     while ((n = recv(p.fd, buff, MAXDATA, 0)) > 0) {
-        c = fwrite(buff, sizeof(char), n, f);
+        if (recv_size + n > filesize) n = filesize - recv_size;
         recv_size += n;
+        c = fwrite(buff, sizeof(char), n, f);
         bzero(buff, MAXDATA);
         if (recv_size >= filesize) break;
     }
-    printf("Download fin!\n");
+    printf("Part%d Download fin!\n", p.part);
     fclose(f);
     return NULL;
 }

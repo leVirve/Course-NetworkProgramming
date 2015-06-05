@@ -14,4 +14,6 @@ void tcp_p2p_init(char*);
 std::string update_assets(std::string);
 void update_peers(std::string, char);
 
-void prepare_download(char*);
+void download_from(char*);
+void* download_from_thread(void* arg);
+void p2p_download(char* raw);

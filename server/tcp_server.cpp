@@ -127,6 +127,7 @@ void list_infomation(char* mesg)
             break;
         default: break;
     }
+    bzero(mesg, strlen(mesg));
     ss.read(mesg, MAXLINE);
     ss.str("");
     ss.clear();
@@ -151,27 +152,30 @@ void p2p_chat_system(int fd, char* mesg)
 
 void p2p_file_system(int fd, char* mesg)
 {
-    char instr, buff1[SHORTINFO], buff2[SHORTINFO];
-    int argc = sscanf("%*s %c %s %s", &instr, buff1, buff2);
+    stringstream ss;
+    char instr, user[SHORTINFO], filename[SHORTINFO];
+    sscanf(mesg, "%s %c %s", user, &instr, filename);
+    int cnt = 0;
 
     switch(instr) {
     case 'D':
-        // if (argc == 2) {
-        // // from server
-        //     send_file(sockfd, filename);
-        // } else {
-        // // from peers
-        //     for (auto client : online_users) {
-        //         if (client.files.find(string(filename
-        //             )) != client.files.end()) {
-        //             write("wait for connection #%d");
-        //             write("connect to #%d");
-        //         }
-        //     }
-        // }
+        // from peers
+        ss << "download " << filename << " ";
+        for (auto client : online_users) {
+            char send[MAXLINE];
+            if (string(user) == client.first) continue;
+            if (is_contained(client.second.files, filename)) {
+                ss << client.first << ",";
+                cnt++;
+            }
+        }
+        // from server
+        // if (i == 0) send_file(fd, filename);
+        bzero(mesg, strlen(mesg));
+        ss.read(mesg, MAXLINE);
+        ss.str("");
+        ss.clear();
         break;
-    case 'U':
-        break;
-        default:break;
+    default:break;
     }
 }

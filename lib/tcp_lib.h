@@ -20,6 +20,7 @@
 #include <string>
 #include <sstream>
 #include <utility>
+#include <algorithm>
 
 #ifndef _DEBUG
 #define DEBUG(format, args...) printf("[Line:%d] " format, __LINE__, ##args)
@@ -29,6 +30,7 @@
 
 #define P2P_PORT "7777"
 
+#define MAXPEERS 100
 #define SHORTINFO 256
 #define MAXLINE 4096
 #define MAXDATA 40960
@@ -36,10 +38,13 @@
 
 struct PeerInfo {
     int fd;
+    int part;
+    int total;
     std::string filename;
 };
 
 void exit_err(std::string);
+bool is_contained(std::string str, std::string targ);
 
 int tcp_connect(const char* host, const char* service);
 int tcp_listen(const char* host, const char* service, socklen_t* addrlen);

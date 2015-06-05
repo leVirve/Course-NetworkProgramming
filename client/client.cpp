@@ -6,11 +6,6 @@ FILE* fp;
 
 pthread_mutex_t std_input;
 
-bool is_contained(std::string str, std::string targ)
-{
-    return str.find(targ) != std::string::npos;
-}
-
 void client(char* host, char* port)
 {
     ssize_t n;
@@ -30,6 +25,8 @@ void client(char* host, char* port)
         if (is_contained(recv, "@")) update_peers(recv, '\n');
         if (is_contained(recv, "connect")) {
             tcp_p2p_client(send, recv);
+        } else if (is_contained(recv, "download")) {
+            p2p_download(recv);
         } else {
             recv[n] = '\0';
             printf("%s\n", recv);

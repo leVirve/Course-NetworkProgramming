@@ -22,6 +22,7 @@ again:
             p2p_chat_system(sockfd, mesg);
             break;
         case 'D': case 'U':
+            DEBUG("What??\n");
             p2p_file_system(sockfd, mesg);
             break;
         default:
