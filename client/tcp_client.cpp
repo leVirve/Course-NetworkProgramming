@@ -58,6 +58,11 @@ void p2p_download(char* raw)
     }
     fclose(out);
     printf("Finished!\n");
+
+    // send self.files to server
+    s = username + " u ";
+    s = s + update_assets("./assets");
+    write(sockfd, s.c_str(), s.length());
 }
 
 void* download_from_thread(void* arg)
@@ -89,11 +94,6 @@ void download_from(char* raw)
     pthread_t tid;
     pthread_create(&tid, NULL, recv_file, (void*) &p);
     pthread_join(tid, NULL);
-
-    // send self.files to server
-    string s = username + " u ";
-    s = s + update_assets("./assets");
-    write(sockfd, s.c_str(), s.length());
 }
 
 void* tcp_p2p_server(void* arg)
@@ -114,7 +114,6 @@ void* tcp_p2p_server(void* arg)
         len = addrlen;
         connfd = (int*) malloc(sizeof(int));
         *connfd = accept(listenfd, &p2p_client, &addrlen);
-        printf("新訊息，按任意建議繼續。\n");
 
         read(*connfd, buff, MAXDATA);
         DEBUG("%s\n", buff);
@@ -134,6 +133,7 @@ void* tcp_p2p_server(void* arg)
             pthread_join(tid, NULL);
             free(connfd);
         } else {
+            printf("新訊息，按Y鍵繼續。\n");
             pthread_mutex_lock(&std_input);
             pthread_create(&tid, NULL, p2p_chat, (void*) connfd);
             pthread_join(tid, NULL);
@@ -154,7 +154,7 @@ void* user_input(void* arg)
         pthread_mutex_lock(&std_input);
         char *p = fgets(input, MAXLINE, stdin);
         pthread_mutex_unlock(&std_input);
-        sleep(1);
+        sleep(0.5);
 
         if (p == NULL) break;
         if (input[0] == 'T') {

@@ -18,12 +18,14 @@ again:
         case 'I': case 'F': case 'u':
             list_infomation(mesg);
             break;
-        case 'T': case 'Y':
+        case 'T':
             p2p_chat_system(sockfd, mesg);
             break;
         case 'D': case 'U':
-            DEBUG("What??\n");
             p2p_file_system(sockfd, mesg);
+            break;
+         case 'Y':
+            sprintf(mesg, "---Start---\n");
             break;
         default:
             break;

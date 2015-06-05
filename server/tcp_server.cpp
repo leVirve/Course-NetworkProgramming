@@ -172,7 +172,7 @@ void p2p_file_system(int fd, char* mesg)
             }
         }
         // from server
-        // if (i == 0) send_file(fd, filename);
+        if (cnt == 0) send_file(fd, filename);
         bzero(mesg, strlen(mesg));
         ss.read(mesg, MAXLINE);
         ss.str("");
