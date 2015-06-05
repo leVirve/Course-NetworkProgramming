@@ -57,6 +57,7 @@ void account_processing(int fd, char* mesg)
                     read(fd, buff, MAXDATA);
                     client.files = buff;
                     online_users.insert({account, client});
+                    printf("%s has: %s\n", account.c_str(), buff);
 
                     // Send peers' info
                     string raw = "";

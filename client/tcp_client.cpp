@@ -10,7 +10,7 @@ void tcp_p2p_client(char* recv)
     int p2p_servfd;
     char user[SHORTINFO];
     sscanf(recv, "%*c %s", user);
-    printf("New message from %s!\n", user);
+    printf("New message >>>>>>>>>>\n");
     auto peer = peers[user];
     DEBUG("send to %s %s\n", peer.first.c_str(), peer.second.c_str());
     p2p_servfd = tcp_connect(peer.first.c_str(), peer.second.c_str());
@@ -154,7 +154,7 @@ void* user_input(void* arg)
         pthread_mutex_lock(&std_input);
         char *p = fgets(input, MAXLINE, stdin);
         pthread_mutex_unlock(&std_input);
-        sleep(0.5);
+        usleep(500000);
 
         if (p == NULL) break;
         if (input[0] == 'T') {
@@ -222,7 +222,7 @@ void update_peers(string data, char delim)
     while (getline(ss, item, delim)) {
         if (sscanf(item.c_str(), "%[^@]@%[^:]:%*[^:]:%s", name, ip, serv_port) != 3) return;
         peers[name] = make_pair(ip, serv_port);
-        printf("%s-%s::%s\n", name, peers[name].first.c_str(), peers[name].second.c_str());
+        DEBUG("%s-%s::%s\n", name, peers[name].first.c_str(), peers[name].second.c_str());
     }
     DEBUG("update_peers\n");
 }
