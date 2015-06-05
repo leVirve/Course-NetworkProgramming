@@ -45,7 +45,7 @@ int tcp_listen(const char* host, const char* service, socklen_t* addrlen)
         if (bind(listenfd, res->ai_addr, res->ai_addrlen) == 0) break;
         close(listenfd);
     } while ((res = res->ai_next) != NULL);
-    if (res == NULL) exit_err("tcp_listen error");
+    if (res == NULL) return -1;
 
     listen(listenfd, LISTENQ);
 
@@ -75,4 +75,75 @@ void exit_err(std::string str)
 {
     perror(str.c_str());
     exit(1);
+}
+
+std::vector<std::string> getdir(std::string dir)
+{
+    std::vector<std::string> files;
+    DIR *dp;
+    struct dirent *dirp;
+    if((dp  = opendir(dir.c_str())) == NULL) {
+        return files;
+    }
+
+    while ((dirp = readdir(dp)) != NULL) {
+        if (dirp->d_name[0] == '.') continue;
+        files.push_back(std::string(dirp->d_name));
+    }
+    closedir(dp);
+    return files;
+}
+
+unsigned int get_filesize(FILE* fp)
+{
+    fseek(fp, 0L, SEEK_END);
+    unsigned int sz = ftell(fp);
+    fseek(fp, 0L, SEEK_SET);
+    return sz;
+}
+
+void* send_file(void* arg)
+{
+    PeerInfo p = *((PeerInfo*) arg);
+    std::string path = "./assets/" + p.filename;
+    FILE* f = fopen(path.c_str(), "rb");
+    unsigned int filesize = get_filesize(f);
+
+    int n;
+    char buff[MAXDATA];
+    sprintf(buff, "%u\n", filesize);
+    send(p.fd, buff, sizeof(buff), 0);
+
+    while ((n = fread(buff, sizeof(char), MAXDATA, f)) > 0) {
+        send(p.fd, buff, n, 0);
+        DEBUG("%d\n", n);
+        bzero(buff, MAXDATA);
+    }
+    fclose(f);
+    printf("Send fin!\n");
+    return NULL;
+}
+
+void* recv_file(void* arg)
+{
+    PeerInfo p = *((PeerInfo*) arg);
+    std::string path = "./assets/new-" + p.filename;
+    FILE* f = fopen(path.c_str(), "wb");
+    unsigned int filesize, recv_size = 0;
+
+    int n, c;
+    char buff[MAXDATA];
+    recv(p.fd, buff, MAXDATA, 0);
+    sscanf(buff, "%u", &filesize);
+    DEBUG("filesize: %u\n", filesize);
+
+    while ((n = recv(p.fd, buff, MAXDATA, 0)) > 0) {
+        c = fwrite(buff, sizeof(char), n, f);
+        recv_size += n;
+        bzero(buff, MAXDATA);
+        if (recv_size >= filesize) break;
+    }
+    printf("Download fin!\n");
+    fclose(f);
+    return NULL;
 }

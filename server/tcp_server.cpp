@@ -44,9 +44,33 @@ void account_processing(int fd, char* mesg)
                     Clinet client;
                     client.sockfd = fd;
                     client.addr = get_client(fd);
-                    client.files = {};
+                    sprintf(mesg, "%s. Login successfully !\n", account.c_str());
+                    write(fd, mesg, strlen(mesg));
+
+                    // Read client's assets
+                    char buff[MAXDATA];
+                    read(fd, buff, MAXDATA);
+                    client.serv_port = buff;
+                    bzero(buff, MAXDATA);
+
+                    // Read client's assets
+                    read(fd, buff, MAXDATA);
+                    client.files = buff;
                     online_users.insert({account, client});
-                    sprintf(mesg, "Login successfully !\n");
+
+                    // Send peers' info
+                    string raw = "";
+                    for (auto peer : online_users) {
+                        if (peer.first == account) continue;
+                        raw += peer.first + "@" +
+                            get_addr(peer.second.addr) + ":" +
+                            peer.second.serv_port + ",";
+                        DEBUG("%s\n", raw.c_str());
+                    }
+                    if (raw.length() == 0) raw = "None";
+                    write(fd, raw.c_str(), raw.length());
+
+                    sprintf(mesg, "%s, initialized !\n", account.c_str());
                 }
             }
             break;
@@ -77,25 +101,35 @@ void list_infomation(char* mesg)
 {
     char instr;
     stringstream ss;
+    vector<string> files;
     sscanf(mesg, "%*s %c", &instr);
     switch(instr) {
         case 'I':
             for (auto user : online_users)
-                ss << user.first << " : " << get_addr(user.second.addr) << endl;
+                ss << user.first << "@" << get_addr(user.second.addr) << endl;
             break;
         case 'F':
+            files = getdir("./Assets");
+            ss << "Server: ";
+            for (auto f : files)
+                ss << f + ", ";
+            ss << " ;" << endl;
             for (auto user : online_users) {
                 ss << user.first << " : ";
-                for (auto file : user.second.files)
-                    ss << file << ", ";
-                ss << " ;" << endl;
+                ss << user.second.files << endl;
             }
+            break;
+        case 'u':
+            char user[SHORTINFO], assets[MAXDATA];
+            sscanf(mesg, "%s %*c %[^$]", user, assets);
+            online_users[user].files = assets;
+            ss << "Update list!" << endl << "\0";
             break;
         default: break;
     }
     ss.read(mesg, MAXLINE);
-    ss.clear();
     ss.str("");
+    ss.clear();
 }
 
 void p2p_chat_system(int fd, char* mesg)
@@ -112,5 +146,32 @@ void p2p_chat_system(int fd, char* mesg)
         sprintf(send, "connect %s", p2p_server.c_str());
         sprintf(mesg, "new connection\n");
         write(p2p_client.sockfd, send, MAXLINE);
+    }
+}
+
+void p2p_file_system(int fd, char* mesg)
+{
+    char instr, buff1[SHORTINFO], buff2[SHORTINFO];
+    int argc = sscanf("%*s %c %s %s", &instr, buff1, buff2);
+
+    switch(instr) {
+    case 'D':
+        // if (argc == 2) {
+        // // from server
+        //     send_file(sockfd, filename);
+        // } else {
+        // // from peers
+        //     for (auto client : online_users) {
+        //         if (client.files.find(string(filename
+        //             )) != client.files.end()) {
+        //             write("wait for connection #%d");
+        //             write("connect to #%d");
+        //         }
+        //     }
+        // }
+        break;
+    case 'U':
+        break;
+        default:break;
     }
 }

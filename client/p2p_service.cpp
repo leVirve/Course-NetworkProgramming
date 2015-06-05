@@ -1,11 +1,15 @@
-#include "tcp_lib.h"
+#include "tcp_client.h"
 
 void* p2p_send(void* arg)
 {
     int fd = *((int*) arg);
     char send[MAXLINE];
-    while (fgets(send, MAXLINE, stdin) != NULL)
+
+    while (fgets(send, MAXLINE, stdin) != NULL) {
+        // printf("send %s", send);
         write(fd, send, strlen(send));
+    }
+
     shutdown(fd, SHUT_WR);
     return NULL;
 }
@@ -17,14 +21,17 @@ void* p2p_recv(void* arg)
     char recv[MAXLINE];
     while((n = read(fd, recv, MAXLINE)) > 0) {
         recv[n] = '\0';
-        printf("%s\n", recv);
+        printf("receive: %s", recv);
     }
     return NULL;
 }
 
-void p2p_chat(int chatfd)
+void* p2p_chat(void* chatfd)
 {
     pthread_t stid, rtid;
-    pthread_create(&stid, NULL, p2p_send, (void*) &chatfd);
-    pthread_create(&rtid, NULL, p2p_send, (void*) &chatfd);
+    pthread_create(&stid, NULL, p2p_send, chatfd);
+    pthread_create(&rtid, NULL, p2p_recv, chatfd);
+    pthread_join(stid, NULL);
+    pthread_join(rtid, NULL);
+    return NULL;
 }

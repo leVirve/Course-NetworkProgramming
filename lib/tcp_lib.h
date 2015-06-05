@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <dirent.h>
 #include <errno.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -18,6 +19,7 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <utility>
 
 #ifndef _DEBUG
 #define DEBUG(format, args...) printf("[Line:%d] " format, __LINE__, ##args)
@@ -32,6 +34,11 @@
 #define MAXDATA 40960
 #define LISTENQ 1024
 
+struct PeerInfo {
+    int fd;
+    std::string filename;
+};
+
 void exit_err(std::string);
 
 int tcp_connect(const char* host, const char* service);
@@ -39,6 +46,10 @@ int tcp_listen(const char* host, const char* service, socklen_t* addrlen);
 std::string get_addr(struct sockaddr_in client);
 struct sockaddr_in get_client(int sockfd);
 
-void p2p_chat(int);
+std::vector<std::string> getdir(std::string);
+
+void* p2p_chat(void*);
+void* send_file(void*);
+void* recv_file(void*);
 
 #endif

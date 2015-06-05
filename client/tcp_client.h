@@ -2,9 +2,16 @@
 
 extern int sockfd;
 extern FILE* fp;
+extern std::string username;
+extern pthread_mutex_t std_input;
 
 void request_processing(char* send);
-void* request(void* arg);
-void tcp_p2p_server(void* arg);
-void tcp_p2p_client(void* arg);
+void* user_input(void* arg);
+void* tcp_p2p_server(void*);
+void tcp_p2p_client(char*, char*);
 
+void tcp_p2p_init(char*);
+std::string update_assets(std::string);
+void update_peers(std::string, char);
+
+void prepare_download(char*);

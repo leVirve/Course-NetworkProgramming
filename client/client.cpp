@@ -4,6 +4,8 @@ int sockfd;
 bool stdin_p2p = false;
 FILE* fp;
 
+pthread_mutex_t std_input;
+
 bool is_contained(std::string str, std::string targ)
 {
     return str.find(targ) != std::string::npos;
@@ -16,27 +18,28 @@ void client(char* host, char* port)
     pthread_t tid;
 
     sockfd = tcp_connect(host, port);
-    DEBUG("client %d=%s:%s\n", sockfd, host, port);
 
-    pthread_create(&tid, NULL, request, (void*) send);
+    // New thread for input handle
+    pthread_create(&tid, NULL, user_input, (void*) send);
+
+    // New thread for p2p_server
+    pthread_create(&tid, NULL, tcp_p2p_server, NULL);
 
     while((n = read(sockfd, recv, MAXLINE)) > 0) {
-        recv[n] = '\0';
-        printf("%s\n", recv);
-        if (is_contained(recv, "new connection")) {
-            stdin_p2p = true;
-            tcp_p2p_server(recv);
-            // pthread_create(&tid, NULL, tcp_p2p_server, (void*) recv);
-        } else if (is_contained(recv, "connect")) {
-            stdin_p2p = true;
-            tcp_p2p_client(recv);
-            // pthread_create(&tid, NULL, tcp_p2p_client, (void*) recv);
+        if (is_contained(recv, "Login")) tcp_p2p_init(recv);
+        if (is_contained(recv, "@")) update_peers(recv, '\n');
+        if (is_contained(recv, "connect")) {
+            tcp_p2p_client(send, recv);
+        } else {
+            recv[n] = '\0';
+            printf("%s\n", recv);
         }
     }
 }
 
 int main(int argc, char** argv)
 {
+    pthread_mutex_init(&std_input, NULL);
     client(argv[1], argv[2]);
     return 0;
 }

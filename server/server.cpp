@@ -4,28 +4,30 @@ void service(int sockfd)
 {
     ssize_t n;
     char mesg[MAXLINE];
-    char user[MAXLINE], instr[MAXLINE];
+    char user[MAXLINE], instr;
 again:
     while((n = read(sockfd, mesg, MAXLINE)) > 0) {
         mesg[n] = '\0';
-        sscanf(mesg, "%s %s", user, instr);
-        DEBUG("%s-%c\n", user, instr[0]);
-        switch(instr[0]) {
-        case 'L': case 'R': case 'E': case 'X':
+        sscanf(mesg, "%s %c", user, &instr);
+        DEBUG("%s-%c\n", user, instr);
+
+        switch(instr) {
+        case 'L': case 'R': case 'E': case 'X': case 'f':
             account_processing(sockfd, mesg);
             break;
-        case 'I': case 'F':
+        case 'I': case 'F': case 'u':
             list_infomation(mesg);
             break;
         case 'T': case 'Y':
             p2p_chat_system(sockfd, mesg);
             break;
         case 'D': case 'U':
-            //p2p_file_system(mesg);
+            p2p_file_system(sockfd, mesg);
             break;
         default:
             break;
         }
+
         write(sockfd, mesg, MAXLINE);
         bzero(mesg, MAXLINE);
     }
@@ -57,7 +59,7 @@ int main(int argc, char **argv)
     listenfd = tcp_listen(NULL, argv[1], &addrlen);
     clientaddr = (struct sockaddr*) malloc(addrlen);
 
-    for(;;) {
+    for (;;) {
         len = addrlen;
         connfdp = (int*) malloc(sizeof(int));
         *connfdp = accept(listenfd, clientaddr, &len);
