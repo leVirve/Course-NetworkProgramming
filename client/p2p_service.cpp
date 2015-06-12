@@ -32,5 +32,6 @@ void* p2p_chat(void* chatfd)
     pthread_create(&rtid, NULL, p2p_recv, chatfd);
     pthread_join(stid, NULL);
     pthread_join(rtid, NULL);
+    // free(chatfd);
     return NULL;
 }

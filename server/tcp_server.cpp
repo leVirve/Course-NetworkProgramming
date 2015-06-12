@@ -147,7 +147,7 @@ void p2p_chat_system(int fd, char* mesg)
     } else {
         string p2p_server = get_addr(get_client(fd));
         Clinet p2p_client = online_users.find(targ)->second;
-        sprintf(mesg, "connecting...\n");
+        sprintf(mesg, "New message >>>>>>>>>>\n按Y鍵繼續。\n\n");
         sprintf(send, "new %s\n", user);
         write(p2p_client.sockfd, send, MAXLINE);
     }

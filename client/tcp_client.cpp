@@ -5,12 +5,15 @@ string username = "USER";
 string p2p_serv_port;
 map<string, pair<string, string>> peers;
 
-void tcp_p2p_client(char* recv)
+void* tcp_p2p_client(void* arg)
 {
+    pthread_detach(pthread_self());
+
+    char* recv = (char*) arg;
+
     int p2p_servfd;
     char user[SHORTINFO];
     sscanf(recv, "%*c %s", user);
-    printf("New message >>>>>>>>>>\n");
     auto peer = peers[user];
     DEBUG("send to %s %s\n", peer.first.c_str(), peer.second.c_str());
     p2p_servfd = tcp_connect(peer.first.c_str(), peer.second.c_str());
@@ -22,6 +25,8 @@ void tcp_p2p_client(char* recv)
     pthread_t tid;
     pthread_create(&tid, NULL, p2p_chat, (void*) &p2p_servfd);
     pthread_join(tid, NULL);
+    DEBUG("leave chat\n");
+    pthread_mutex_unlock(&std_input);
 }
 
 void p2p_download(char* raw)
@@ -134,6 +139,7 @@ void* tcp_p2p_server(void* arg)
 
     for (;;) {
         len = addrlen;
+        DEBUG("wating.........................\n");
         connfd = (int*) malloc(sizeof(int));
         *connfd = accept(listenfd, &p2p_client, &addrlen);
 
@@ -154,6 +160,7 @@ void* tcp_p2p_server(void* arg)
             pthread_create(&tid, NULL, send_file, (void*) &p);
             pthread_join(tid, NULL);
             free(connfd);
+            DEBUG("free@Download\n");
         } else if (buff[0] == 'U') {
             int n = sscanf(buff, "U %*s %s", filename);
             PeerInfo p;
@@ -164,13 +171,12 @@ void* tcp_p2p_server(void* arg)
             pthread_create(&tid, NULL, recv_file, (void*) &p);
             pthread_join(tid, NULL);
             free(connfd);
+            DEBUG("free@Upload\n");
         } else {
+            pthread_t sid;
             printf("新訊息，按Y鍵繼續。\n");
             pthread_mutex_lock(&std_input);
-            pthread_create(&tid, NULL, p2p_chat, (void*) connfd);
-            pthread_join(tid, NULL);
-            pthread_mutex_unlock(&std_input);
-            free(connfd);
+            pthread_create(&sid, NULL, p2p_chat, (void*) connfd);
         }
     }
     return NULL;
@@ -181,6 +187,7 @@ void* user_input(void* arg)
     char send[MAXLINE];
     char buff1[SHORTINFO], buff2[SHORTINFO];
     char* input = (char*) arg;
+    pthread_t tid;
 
     while (1) {
         pthread_mutex_lock(&std_input);
@@ -191,7 +198,7 @@ void* user_input(void* arg)
         if (p == NULL) break;
         if (input[0] == 'T') {
             pthread_mutex_lock(&std_input);
-            tcp_p2p_client(input);
+            pthread_create(&tid, NULL, tcp_p2p_client, input);
             pthread_mutex_unlock(&std_input);
         }
         if (input[0] == 'D') {

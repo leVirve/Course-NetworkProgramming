@@ -7,9 +7,9 @@ extern pthread_mutex_t std_input;
 extern pthread_mutex_t std_input_s;
 
 void request_processing(char* send);
-void* user_input(void* arg);
+void* user_input(void*);
 void* tcp_p2p_server(void*);
-void tcp_p2p_client(char*);
+void* tcp_p2p_client(void*);
 
 void tcp_p2p_init(char*);
 std::string update_assets(std::string);
