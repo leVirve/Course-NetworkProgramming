@@ -96,6 +96,28 @@ void download_from(char* raw)
     pthread_join(tid, NULL);
 }
 
+void upload_to(char* raw)
+{
+    char filename[SHORTINFO], user[SHORTINFO];
+    int n = sscanf(raw, "%*s %s %s", user, filename);
+
+    auto peer = peers[user];
+    DEBUG("send to %s %s\n", peer.first.c_str(), peer.second.c_str());
+    int p2p_servfd = tcp_connect(peer.first.c_str(), peer.second.c_str());
+
+    // Tell peer: U <name> <filename>
+    write(p2p_servfd, raw, strlen(raw));
+
+    PeerInfo p;
+    p.fd = p2p_servfd;
+    p.filename = filename;
+    p.part = 1;
+    p.total = -1;
+    pthread_t tid;
+    pthread_create(&tid, NULL, send_file, (void*) &p);
+    pthread_join(tid, NULL);
+}
+
 void* tcp_p2p_server(void* arg)
 {
     int listenfd, *connfd;
@@ -130,6 +152,16 @@ void* tcp_p2p_server(void* arg)
             p.part = part;
             p.total = total;
             pthread_create(&tid, NULL, send_file, (void*) &p);
+            pthread_join(tid, NULL);
+            free(connfd);
+        } else if (buff[0] == 'U') {
+            int n = sscanf(buff, "U %*s %s", filename);
+            PeerInfo p;
+            p.fd = *connfd;
+            p.filename = filename;
+            p.part = 1;
+            p.total = -1;
+            pthread_create(&tid, NULL, recv_file, (void*) &p);
             pthread_join(tid, NULL);
             free(connfd);
         } else {
@@ -167,6 +199,8 @@ void* user_input(void* arg)
                 download_from(input);
                 continue;
             }
+        } else if (input[0] == 'U') {
+            upload_to(input);
         }
 
         strcpy(send, input);

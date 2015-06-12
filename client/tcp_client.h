@@ -16,5 +16,6 @@ std::string update_assets(std::string);
 void update_peers(std::string, char);
 
 void download_from(char*);
+void upload_to(char*);
 void* download_from_thread(void* arg);
 void p2p_download(char* raw);
